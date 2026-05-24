@@ -5,6 +5,31 @@ const API_URL      = import.meta.env.VITE_API_URL            || 'http://localhos
 const KASPI_PHONE  = import.meta.env.VITE_KASPI_PHONE        || '+7 (777) 000-00-00'
 const KASPI_AMOUNT = import.meta.env.VITE_KASPI_AMOUNT       || '50 000'
 
+// Маска +7 (XXX) XXX-XX-XX. Принимает любой ввод, нормализует к 11 цифрам с лидирующей 7.
+function formatPhone(input) {
+  let digits = String(input || '').replace(/\D/g, '')
+  if (digits.startsWith('8')) digits = '7' + digits.slice(1)
+  if (!digits.startsWith('7')) digits = '7' + digits
+  digits = digits.slice(0, 11)
+  const a = digits.slice(1, 4)
+  const b = digits.slice(4, 7)
+  const c = digits.slice(7, 9)
+  const d = digits.slice(9, 11)
+  let out = '+7'
+  if (a) out += ' (' + a
+  if (a.length === 3) out += ')'
+  if (b) out += ' ' + b
+  if (c) out += '-' + c
+  if (d) out += '-' + d
+  return out
+}
+
+function phoneDigits(input) {
+  return String(input || '').replace(/\D/g, '')
+}
+
+const isPhoneValid = (input) => phoneDigits(input).length === 11
+
 const formatDate = (dateStr) => {
   const d = new Date(dateStr)
   return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long' })
@@ -61,7 +86,7 @@ function googleCalLink(session) {
 }
 
 export default function RegistrationForm({ sessions = fallbackSessions, canRegister, selectedSession, onBlockedClick }) {
-  const [form, setForm]         = useState({ name: '', phone: '', whatsapp: '', email: '' })
+  const [form, setForm]         = useState({ name: '', whatsapp: '', email: '' })
   const [step, setStep]         = useState('form')   // 'form' | 'payment' | 'confirmed'
   const [loading, setLoading]   = useState(false)
   const [payLoading, setPayLoading] = useState(false)
@@ -72,8 +97,16 @@ export default function RegistrationForm({ sessions = fallbackSessions, canRegis
   const [receiptPreview, setReceiptPreview] = useState(null) // URL превью
   const [applicationId, setApplicationId] = useState(null)
 
-  const session   = sessions.find(s => String(s.id) === String(selectedSession))
-  const formValid = form.name.trim() && form.phone.trim()
+  const session    = sessions.find(s => String(s.id) === String(selectedSession))
+  const phoneValid = isPhoneValid(form.whatsapp)
+  const formValid  = form.name.trim() && phoneValid
+
+  const handlePhoneChange = (raw) => {
+    setForm(prev => ({ ...prev, whatsapp: formatPhone(raw) }))
+  }
+  const handlePhoneFocus = () => {
+    if (!form.whatsapp) setForm(prev => ({ ...prev, whatsapp: '+7 ' }))
+  }
 
   // ── Шаг 1: отправить заявку ──────────────────────────────────────────────
   const handleSubmit = async (e) => {
@@ -83,13 +116,14 @@ export default function RegistrationForm({ sessions = fallbackSessions, canRegis
     if (!formValid) return
     setLoading(true); setError(null)
     try {
+      const phone = form.whatsapp
       const response = await fetch(`${API_URL}/api/public/applications`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name,
-          phone: form.phone,
-          whatsapp: form.whatsapp || form.phone,
+          phone,
+          whatsapp: phone,
           email: form.email,
           sessionPublicId: String(session?.publicId || session?.id),
           flowCompleted: true,
@@ -306,21 +340,17 @@ export default function RegistrationForm({ sessions = fallbackSessions, canRegis
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {[
-            { name: 'name',  label: 'Имя и фамилия',  placeholder: 'Айгерим Назарова',    type: 'text'  },
-            { name: 'phone', label: 'Номер телефона',  placeholder: '+7 (777) 000-00-00',  type: 'tel'   },
-            { name: 'whatsapp', label: 'WhatsApp, если отличается',  placeholder: '+7 (777) 000-00-00',  type: 'tel', optional: true },
-            { name: 'email', label: 'Email, необязательно',           placeholder: 'example@gmail.com',   type: 'email', optional: true },
-          ].map(f => {
-            const isEmpty = touched && canRegister && !f.optional && !form[f.name].trim()
+          {/* Имя */}
+          {(() => {
+            const isEmpty = touched && canRegister && !form.name.trim()
             return (
-              <div key={f.name}>
-                <label className="block text-white/60 text-sm mb-1.5">{f.label}</label>
+              <div>
+                <label className="block text-white/60 text-sm mb-1.5">Имя и фамилия</label>
                 <input
-                  type={f.type}
-                  placeholder={f.placeholder}
-                  value={form[f.name]}
-                  onChange={e => setForm({ ...form, [f.name]: e.target.value })}
+                  type="text"
+                  placeholder="Айгерим Назарова"
+                  value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
                   className={`w-full bg-white/10 border rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none text-sm transition-colors ${
                     isEmpty ? 'border-red-400' : 'border-white/20 focus:border-[#D97757]'
                   }`}
@@ -328,7 +358,56 @@ export default function RegistrationForm({ sessions = fallbackSessions, canRegis
                 {isEmpty && <p className="text-red-400 text-xs mt-1">Заполните это поле</p>}
               </div>
             )
-          })}
+          })()}
+
+          {/* Телефон / WhatsApp — одно поле */}
+          {(() => {
+            const showError = touched && canRegister && !phoneValid
+            const showOk = form.whatsapp.length > 3 && phoneValid
+            return (
+              <div>
+                <label className="block text-white/60 text-sm mb-1.5">
+                  Номер WhatsApp <span className="text-white/30">— на этот номер придёт подтверждение</span>
+                </label>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="+7 (777) 000-00-00"
+                  value={form.whatsapp}
+                  onChange={e => handlePhoneChange(e.target.value)}
+                  onFocus={handlePhoneFocus}
+                  className={`w-full bg-white/10 border rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none text-sm transition-colors ${
+                    showError
+                      ? 'border-red-400'
+                      : showOk
+                        ? 'border-green-400/60 focus:border-green-400'
+                        : 'border-white/20 focus:border-[#D97757]'
+                  }`}
+                />
+                {showError && (
+                  <p className="text-red-400 text-xs mt-1">
+                    Введите номер целиком: 11 цифр, начиная с +7
+                  </p>
+                )}
+                {showOk && (
+                  <p className="text-green-400/80 text-xs mt-1">✓ Номер заполнен корректно</p>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* Email — опционально */}
+          <div>
+            <label className="block text-white/60 text-sm mb-1.5">Email, необязательно</label>
+            <input
+              type="email"
+              placeholder="example@gmail.com"
+              value={form.email}
+              onChange={e => setForm({ ...form, email: e.target.value })}
+              className="w-full bg-white/10 border border-white/20 focus:border-[#D97757] rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none text-sm transition-colors"
+            />
+          </div>
 
           {error && <p className="text-red-400 text-sm">{error}</p>}
 

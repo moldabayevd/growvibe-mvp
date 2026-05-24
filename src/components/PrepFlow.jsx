@@ -84,6 +84,7 @@ const macSteps = [
       { n: 8, text: '⚠️ Токен показывается ОДИН РАЗ — скопируй его сразу и сохрани в заметках!' },
     ],
     links: [{ label: 'Открыть настройки GitHub', href: 'https://github.com/settings/tokens' }],
+    tokenHelper: true,
     checks: ['Я создал GitHub токен и сохранил его'],
   },
   {
@@ -207,6 +208,7 @@ const winSteps = [
       { n: 4, text: '⚠️ Токен показывается ОДИН РАЗ — скопируй и сохрани!' },
     ],
     links: [{ label: 'Открыть настройки GitHub', href: 'https://github.com/settings/tokens' }],
+    tokenHelper: true,
     checks: ['Я создал GitHub токен и сохранил его'],
   },
   {
@@ -252,6 +254,99 @@ const winSteps = [
 ]
 
 // ── sub-components ──────────────────────────────────────────────────────────
+
+const TOKEN_KEY = 'growvibe_github_token_draft'
+
+function TokenHelper() {
+  const [token, setToken] = useState(() => {
+    try { return localStorage.getItem(TOKEN_KEY) || '' } catch { return '' }
+  })
+  const [copied, setCopied] = useState(false)
+  const [saved, setSaved]   = useState(false)
+
+  const onPaste = (value) => {
+    setToken(value)
+    try {
+      localStorage.setItem(TOKEN_KEY, value)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1500)
+    } catch {
+      // localStorage недоступен (приватный режим) — игнорируем, просто не запоминаем
+    }
+  }
+
+  const copyToClipboard = async () => {
+    if (!token.trim()) return
+    try {
+      await navigator.clipboard.writeText(token.trim())
+      setCopied(true); setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // fallback for older browsers
+      const ta = document.createElement('textarea')
+      ta.value = token.trim()
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      setCopied(true); setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const looksLikeToken = /^ghp_[A-Za-z0-9]{30,}$/.test(token.trim())
+
+  return (
+    <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-300 rounded-xl p-4 mb-4">
+      <p className="text-sm font-semibold text-amber-900 mb-2">
+        💾 Сохрани токен прямо здесь — потеряешь, придётся создавать новый
+      </p>
+      <p className="text-xs text-amber-800/80 mb-3">
+        Скопируй токен с GitHub (Ctrl+C или Cmd+C) и вставь сюда. Он сохранится только в твоём браузере — мы никуда его не отправляем.
+      </p>
+      <div className="flex flex-col sm:flex-row gap-2 mb-3">
+        <input
+          type="text"
+          value={token}
+          onChange={e => onPaste(e.target.value)}
+          placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          spellCheck={false}
+          autoComplete="off"
+          className={`flex-1 bg-white border rounded-lg px-3 py-2 text-sm font-mono text-gray-800 placeholder-gray-300 focus:outline-none transition-colors ${
+            token && !looksLikeToken
+              ? 'border-red-300 focus:border-red-400'
+              : looksLikeToken
+                ? 'border-green-400 focus:border-green-500'
+                : 'border-amber-200 focus:border-amber-400'
+          }`}
+        />
+        <button
+          type="button"
+          onClick={copyToClipboard}
+          disabled={!token.trim()}
+          className="bg-amber-600 hover:bg-amber-700 disabled:bg-amber-200 disabled:cursor-not-allowed text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors flex-shrink-0"
+        >
+          {copied ? '✓ Скопировано' : 'Скопировать'}
+        </button>
+      </div>
+      {token && !looksLikeToken && (
+        <p className="text-xs text-red-700 mb-2">
+          ⚠️ Похоже это не GitHub-токен. Должен начинаться с <code className="bg-red-100 px-1 rounded">ghp_</code> и быть длиннее 30 символов.
+        </p>
+      )}
+      {saved && (
+        <p className="text-xs text-green-700 mb-2">✓ Сохранено в этом браузере</p>
+      )}
+      <div className="text-xs text-amber-800/80 border-t border-amber-300/50 pt-3">
+        <p className="font-semibold mb-1">Дополнительно сохрани в любом удобном месте:</p>
+        <ul className="space-y-1 list-disc list-inside ml-1">
+          <li>📝 <strong>Заметки</strong> на телефоне (iOS Notes / Google Keep / Samsung Notes)</li>
+          <li>💬 <strong>Telegram</strong> → «Избранное» (Saved Messages) — отправь сам себе</li>
+          <li>🔐 <strong>Менеджер паролей</strong>: Bitwarden, 1Password, iCloud Keychain</li>
+          <li>📧 <strong>Письмо самому себе</strong> на email (быстро и просто)</li>
+        </ul>
+      </div>
+    </div>
+  )
+}
 
 function InstructionList({ items }) {
   return (
@@ -331,6 +426,9 @@ function StepCard({ step, index, checked, onCheck, isOpen, onOpen, isLocked, isL
 
           {/* numbered instructions */}
           {step.instructions && <InstructionList items={step.instructions} />}
+
+          {/* token helper — paste + copy to clipboard */}
+          {step.tokenHelper && <TokenHelper />}
 
           {/* external links */}
           {step.links && step.links.length > 0 && (

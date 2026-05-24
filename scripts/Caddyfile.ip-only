@@ -1,0 +1,33 @@
+{
+  auto_https off
+}
+
+:80 {
+  encode zstd gzip
+
+  handle_path /admin/* {
+    rewrite * /{path}
+    reverse_proxy admin:80
+  }
+
+  handle_path /api/* {
+    rewrite * /{path}
+    reverse_proxy api:4000
+  }
+
+  handle /uploads/* {
+    reverse_proxy api:4000
+  }
+
+  handle /webhooks/* {
+    reverse_proxy api:4000
+  }
+
+  handle /health {
+    reverse_proxy api:4000
+  }
+
+  handle {
+    reverse_proxy web:80
+  }
+}

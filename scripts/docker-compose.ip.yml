@@ -1,0 +1,37 @@
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: growvibe-caddy
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+      admin:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile.ip:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  postgres:
+    ports: !override []
+
+  minio:
+    ports: !override []
+
+  api:
+    ports: !override []
+
+  web:
+    ports: !override []
+
+  admin:
+    ports: !override []
+
+volumes:
+  caddy_data:
+  caddy_config:

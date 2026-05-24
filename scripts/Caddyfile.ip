@@ -1,0 +1,18 @@
+{
+  auto_https off
+}
+
+http://213.155.23.46.nip.io {
+  encode zstd gzip
+  reverse_proxy web:80
+}
+
+http://admin.213.155.23.46.nip.io {
+  encode zstd gzip
+  reverse_proxy admin:80
+}
+
+http://api.213.155.23.46.nip.io {
+  encode zstd gzip
+  reverse_proxy api:4000
+}
