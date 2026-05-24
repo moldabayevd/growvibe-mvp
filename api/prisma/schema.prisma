@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ApplicationStatus {
+  NEW
+  FLOW_COMPLETED
+  PAYMENT_PENDING
+  PROOF_UPLOADED
+  PAID
+  CONFIRMED
+  ATTENDED
+  NO_SHOW
+  RESCHEDULED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROOF_UPLOADED
+  VERIFIED
+  REJECTED
+  REFUNDED
+}
+
+enum SessionStatus {
+  OPEN
+  RISK
+  CONFIRMED
+  ALMOST_FULL
+  FULL
+  CLOSED
+  CANCELLED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageChannel {
+  WHATSAPP
+  SYSTEM
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  RECEIVED
+}
+
+model Lead {
+  id           String            @id @default(cuid())
+  name         String?
+  phone        String            @unique
+  whatsapp     String?
+  email        String?
+  instagram    String?
+  source       String?
+  applications Application[]
+  messages     WhatsappMessage[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model TrainingSession {
+  id           String            @id @default(cuid())
+  publicId     String            @unique
+  city         String
+  date         DateTime
+  day          String
+  time         String
+  duration     String
+  format       String
+  location     String
+  priceKzt     Int
+  seatsTotal   Int
+  seatsMin     Int               @default(15)
+  status       SessionStatus     @default(OPEN)
+  applications Application[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model Application {
+  id                  String              @id @default(cuid())
+  leadId              String
+  sessionId           String
+  status              ApplicationStatus   @default(PAYMENT_PENDING)
+  flowCompleted       Boolean             @default(false)
+  readinessConfirmed  Boolean             @default(false)
+  conditionsConfirmed Boolean             @default(false)
+  comment             String?
+  nextStep            String?
+  lead                Lead                @relation(fields: [leadId], references: [id])
+  session             TrainingSession     @relation(fields: [sessionId], references: [id])
+  payments            Payment[]
+  messages            WhatsappMessage[]
+  reminders           Reminder[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([leadId])
+  @@index([sessionId])
+  @@index([status])
+}
+
+model Payment {
+  id                  String        @id @default(cuid())
+  applicationId       String
+  amountKzt           Int
+  method              String        @default("kaspi_transfer")
+  status              PaymentStatus @default(PENDING)
+  receiptUrl          String?
+  receiptMime         String?
+  receiptOriginalName String?
+  verifiedAt          DateTime?
+  verifiedBy          String?
+  rejectedReason      String?
+  application         Application   @relation(fields: [applicationId], references: [id])
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([applicationId])
+  @@index([status])
+}
+
+model WhatsappMessage {
+  id            String           @id @default(cuid())
+  leadId        String?
+  applicationId String?
+  direction     MessageDirection
+  channel       MessageChannel   @default(WHATSAPP)
+  waMessageId   String?
+  templateName  String?
+  body          String?
+  status        MessageStatus    @default(QUEUED)
+  payload       Json?
+  lead          Lead?            @relation(fields: [leadId], references: [id])
+  application   Application?     @relation(fields: [applicationId], references: [id])
+  createdAt     DateTime         @default(now())
+
+  @@index([leadId])
+  @@index([applicationId])
+  @@index([waMessageId])
+}
+
+model Reminder {
+  id            String        @id @default(cuid())
+  applicationId String
+  type          String
+  scheduledAt   DateTime
+  sentAt        DateTime?
+  status        MessageStatus @default(QUEUED)
+  application   Application   @relation(fields: [applicationId], references: [id])
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([applicationId])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actor     String?
+  action    String
+  entity    String
+  entityId  String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+}

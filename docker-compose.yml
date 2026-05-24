@@ -1,0 +1,126 @@
+services:
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: growvibe-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-growvibe}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-growvibe-secret}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: growvibe-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-growvibe}
+      POSTGRES_USER: ${POSTGRES_USER:-growvibe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-growvibe}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-growvibe} -d ${POSTGRES_DB:-growvibe}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./api
+    container_name: growvibe-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-growvibe}:${POSTGRES_PASSWORD:-growvibe}@postgres:5432/${POSTGRES_DB:-growvibe}?schema=public
+      PORT: 4000
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-change-me-admin-token}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin12345}
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-session-secret}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-minio}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}
+      MINIO_PORT: ${MINIO_INTERNAL_PORT:-9000}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-growvibe}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-growvibe-secret}
+      MINIO_BUCKET: ${MINIO_BUCKET:-receipts}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:4000}
+      UPLOAD_DIR: /app/uploads
+      KASPI_PHONE: ${KASPI_PHONE:-+7 (777) 000-00-00}
+      KASPI_AMOUNT: ${KASPI_AMOUNT:-50000}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-growvibe-webhook-token}
+      WHATSAPP_GRAPH_VERSION: ${WHATSAPP_GRAPH_VERSION:-v24.0}
+      WHATSAPP_TEMPLATE_APPLICATION_RECEIVED: ${WHATSAPP_TEMPLATE_APPLICATION_RECEIVED:-}
+      WHATSAPP_TEMPLATE_PROOF_RECEIVED: ${WHATSAPP_TEMPLATE_PROOF_RECEIVED:-}
+      WHATSAPP_TEMPLATE_PAYMENT_VERIFIED: ${WHATSAPP_TEMPLATE_PAYMENT_VERIFIED:-}
+      WHATSAPP_TEMPLATE_REMINDER_24H: ${WHATSAPP_TEMPLATE_REMINDER_24H:-}
+      WHATSAPP_TEMPLATE_REMINDER_3H: ${WHATSAPP_TEMPLATE_REMINDER_3H:-}
+    ports:
+      - "${API_PORT:-4000}:4000"
+    volumes:
+      - ./api/uploads:/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000}
+        VITE_KASPI_PHONE: ${KASPI_PHONE:-+7 (777) 000-00-00}
+        VITE_KASPI_AMOUNT: ${KASPI_AMOUNT:-50000}
+    container_name: growvibe-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-5173}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  admin:
+    build:
+      context: ./admin
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000}
+    container_name: growvibe-admin
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${ADMIN_PORT:-5174}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  minio_data:

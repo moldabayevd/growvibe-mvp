@@ -1,0 +1,82 @@
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: growvibe-caddy
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+      admin:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    environment:
+      WEB_DOMAIN: ${WEB_DOMAIN}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  postgres:
+    ports: !override []
+
+  minio:
+    ports: !override []
+
+  api:
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      PORT: 4000
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET}
+      STORAGE_DRIVER: minio
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-receipts}
+      CORS_ORIGINS: https://${WEB_DOMAIN},https://${ADMIN_DOMAIN}
+      PUBLIC_BASE_URL: https://${API_DOMAIN}
+      UPLOAD_DIR: /app/uploads
+      KASPI_PHONE: ${KASPI_PHONE}
+      KASPI_AMOUNT: ${KASPI_AMOUNT}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID}
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN}
+      WHATSAPP_GRAPH_VERSION: ${WHATSAPP_GRAPH_VERSION:-v24.0}
+      WHATSAPP_TEMPLATE_APPLICATION_RECEIVED: ${WHATSAPP_TEMPLATE_APPLICATION_RECEIVED}
+      WHATSAPP_TEMPLATE_PROOF_RECEIVED: ${WHATSAPP_TEMPLATE_PROOF_RECEIVED}
+      WHATSAPP_TEMPLATE_PAYMENT_VERIFIED: ${WHATSAPP_TEMPLATE_PAYMENT_VERIFIED}
+      WHATSAPP_TEMPLATE_REMINDER_24H: ${WHATSAPP_TEMPLATE_REMINDER_24H}
+      WHATSAPP_TEMPLATE_REMINDER_3H: ${WHATSAPP_TEMPLATE_REMINDER_3H}
+    ports: !override []
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: https://${API_DOMAIN}
+        VITE_KASPI_PHONE: ${KASPI_PHONE}
+        VITE_KASPI_AMOUNT: ${KASPI_AMOUNT}
+    ports: !override []
+
+  admin:
+    build:
+      context: ./admin
+      args:
+        VITE_API_URL: https://${API_DOMAIN}
+    ports: !override []
+
+volumes:
+  caddy_data:
+  caddy_config:
