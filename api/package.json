@@ -12,6 +12,7 @@
     "prisma:validate": "prisma validate"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.55.0",
     "@prisma/client": "^6.19.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",

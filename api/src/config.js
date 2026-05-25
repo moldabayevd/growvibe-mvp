@@ -28,6 +28,8 @@ export const config = {
       region: process.env.MINIO_REGION || 'us-east-1',
     },
   },
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
+  litellmBaseUrl: process.env.LITELLM_BASE_URL || '',
   publicBaseUrl: process.env.PUBLIC_BASE_URL || 'http://localhost:4000',
   kaspiPhone: process.env.KASPI_PHONE || '+7 (777) 000-00-00',
   kaspiAmount: Number(process.env.KASPI_AMOUNT || 50000),

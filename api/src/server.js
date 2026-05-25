@@ -177,6 +177,133 @@ app.post('/api/public/requests', asyncRoute(async (req, res) => {
   res.status(201).json({ ok: true, requestId: created.id })
 }))
 
+const CHAT_SYSTEM_PROMPT = `Ты — AI-помощник Vibe 42, движения по обучению вайб-кодингу для команд.
+
+ВАЖНО: Vibe 42 — это НЕ курсы. Это нонпрофит движение и практикум, где команды сами создают продукты с AI. Это принципиальное отличие — всегда подчёркивай при вопросах.
+
+ЧТО ТАКОЕ VIBE 42:
+Vibe 42 — корпоративный практикум: сотрудники описывают задачи обычными словами, AI помогает собрать сайт, приложение, форму, прототип или внутренний инструмент. Знание программирования не нужно.
+
+ДЛЯ КОГО:
+- Продуктовые команды — быстро проверяют идеи и прототипы без разработчиков
+- Маркетинг и продажи — сами делают лендинги, формы, инструменты под кампании
+- HR и операционные отделы — автоматизируют рутину, делают формы и опросы
+- Руководители — команда за день собирает MVP вместо двух недель ТЗ
+- Аналитики и менеджеры — превращают идеи в работающие интерфейсы
+- Стартапы — учат всю команду делать продукты с AI без раздувания штата
+
+ЧТО ПОЛУЧИТ КОМАНДА:
+1. Поймут, что такое вайб-кодинг и где он реально помогает
+2. Научатся ставить задачи AI и получать рабочий результат
+3. Каждый сделает свой первый цифровой проект на практике
+4. Освоят Claude и базовые инструменты вайб-кодинга
+5. Научатся работать с GitHub и сохранять наработки
+6. Получат набор готовых промптов под рабочие задачи
+7. Научатся дорабатывать результат итерациями
+8. Поймут, как применить вайб-кодинг в своих процессах
+
+ФОРМАТ:
+- Офлайн (в офисе клиента) или онлайн — на выбор
+- Длительность и количество встреч согласуем после заявки
+- Программу подбираем под задачи конкретной команды
+
+СТОИМОСТЬ:
+Рассчитывается индивидуально: зависит от количества сотрудников, формата и программы. Точную цифру даём после заявки.
+
+ЧТО НУЖНО ОТ КОМПАНИИ:
+Ноутбуки для участников и место (если офлайн). Программу, материалы и ведущего берём на себя.
+
+КАК ОСТАВИТЬ ЗАЯВКУ:
+Заполнить форму на сайте: название организации, количество сотрудников, контактный телефон. Свяжемся и обсудим всё детально.
+
+СТИЛЬ ОТВЕТОВ:
+- Отвечай коротко и по делу, без лишних вводных
+- Используй конкретные примеры из описания выше
+- Если спрашивают про цену — объясни, что рассчитывается индивидуально, и предложи оставить заявку
+- Если хотят записаться — направь к форме заявки внизу страницы
+- Пиши на русском языке`
+
+const chatSchema = z.object({
+  message: z.string().min(1).max(500),
+  history: z.array(z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string().max(2000),
+  })).max(20).default([]),
+})
+
+app.post('/api/public/chat', asyncRoute(async (req, res) => {
+  if (!config.anthropicApiKey) {
+    return res.status(503).json({ error: 'AI-помощник временно недоступен' })
+  }
+  const { message, history } = chatSchema.parse(req.body)
+  const baseUrl = config.litellmBaseUrl || 'https://api.anthropic.com'
+  const endpoint = `${baseUrl}/v1/chat/completions`
+  const aiRes = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${config.anthropicApiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'Qwen/Qwen3-VL-32B-Instruct',
+      max_tokens: 512,
+      messages: [
+        { role: 'system', content: CHAT_SYSTEM_PROMPT },
+        ...history,
+        { role: 'user', content: message },
+      ],
+    }),
+  })
+  const data = await aiRes.json()
+  if (!aiRes.ok) {
+    console.error('LiteLLM error:', data)
+    return res.status(502).json({ error: 'AI-помощник временно недоступен' })
+  }
+  res.json({ response: data.choices[0].message.content })
+}))
+
+const CONTEXT_EXPLAIN_PROMPT = `Ты — помощник Vibe 42. Человек описал свою роль или занятие.
+Напиши 3-4 предложения: объясни конкретно, как вайб-кодинг поможет ИМЕННО этому человеку в его работе.
+Используй примеры, релевантные его роли. Не начинай с "Вайб-кодинг — это...".
+Сразу к делу, говори лично с ним. Не больше 80 слов. Пиши на русском.`
+
+app.post('/api/public/chat-stream', asyncRoute(async (req, res) => {
+  if (!config.anthropicApiKey) {
+    return res.status(503).json({ error: 'AI временно недоступен' })
+  }
+  const { message } = z.object({ message: z.string().min(1).max(300) }).parse(req.body)
+  const baseUrl = config.litellmBaseUrl || 'https://api.anthropic.com'
+  const aiRes = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.anthropicApiKey}` },
+    body: JSON.stringify({
+      model: 'Qwen/Qwen3-VL-32B-Instruct',
+      max_tokens: 200,
+      stream: true,
+      messages: [
+        { role: 'system', content: CONTEXT_EXPLAIN_PROMPT },
+        { role: 'user', content: message },
+      ],
+    }),
+  })
+  if (!aiRes.ok) return res.status(502).json({ error: 'AI временно недоступен' })
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.setHeader('X-Accel-Buffering', 'no')
+  const reader = aiRes.body.getReader()
+  const decoder = new TextDecoder()
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      res.write(decoder.decode(value, { stream: true }))
+    }
+  } finally {
+    res.end()
+  }
+}))
+
 app.get('/api/admin/requests', requireAdmin, asyncRoute(async (req, res) => {
   const status = req.query.status ? String(req.query.status) : undefined
   const requests = await prisma.organizationRequest.findMany({

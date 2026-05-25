@@ -7,20 +7,25 @@ export default function Hero({ onCTA }) {
       </div>
 
       <div className="relative max-w-4xl mx-auto px-6 py-24 md:py-32 text-center">
-        <div className="inline-flex items-center gap-2 bg-white/5 border border-cyan-400/40 rounded-full px-4 py-1.5 text-sm mb-8">
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-          B2B · обучение вайб-кодингу для команд
+        <div className="flex flex-wrap justify-center gap-2 mb-8">
+          <div className="inline-flex items-center gap-2 bg-white/5 border border-cyan-400/40 rounded-full px-4 py-1.5 text-sm">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            Движение · не курсы
+          </div>
+          <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-sm text-white/60">
+            ✦ Нонпрофит инициатива
+          </div>
         </div>
 
         <h1 className="text-4xl md:text-6xl font-bold leading-tight tracking-tight mb-6">
           <span className="text-cyan-400">Vibe 42</span><br />
-          обучение вайб-кодингу для&nbsp;вашей команды
+          движение вайб-кодинга для&nbsp;команд
         </h1>
 
         <p className="text-lg md:text-xl text-white/70 max-w-2xl mx-auto mb-10">
-          Организуем практическое обучение сотрудников: ваши люди начинают
-          создавать цифровые продукты с помощью AI — за пару занятий, без курсов
-          по программированию.
+          Это не курсы — это практикум-движение, где ваша команда начинает
+          создавать цифровые продукты с помощью AI. За пару занятий,
+          без программирования, с реальным результатом.
         </p>
 
         <div className="flex flex-wrap justify-center gap-3 mb-12 text-sm">

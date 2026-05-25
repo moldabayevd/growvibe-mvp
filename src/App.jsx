@@ -6,6 +6,9 @@ import WhatYouMake from './components/WhatYouMake'
 import RequestForm from './components/RequestForm'
 import FAQ from './components/FAQ'
 import Toast from './components/Toast'
+import ChatWidget from './components/ChatWidget'
+import Partners from './components/Partners'
+import ContextBlock from './components/ContextBlock'
 
 export default function App() {
   const [toast, setToast] = useState(null)
@@ -20,6 +23,8 @@ export default function App() {
       {toast && <Toast key={toast} message={toast} onDone={clearToast} />}
 
       <Hero onCTA={scrollToForm} />
+      <Partners />
+      <ContextBlock />
       <WhatIs />
       <ForWhom />
       <WhatYouMake onCTA={scrollToForm} />
@@ -36,6 +41,8 @@ export default function App() {
           <div>© 2026 Vibe 42 · Обучение вайб-кодингу для команд</div>
         </div>
       </footer>
+
+      <ChatWidget />
     </div>
   )
 }
