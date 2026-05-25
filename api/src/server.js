@@ -126,8 +126,105 @@ const sendConfiguredTemplate = async ({ application, templateName, parameters, f
 }
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'growvibe-api' })
+  res.json({ ok: true, service: 'vibe42-api' })
 })
+
+const toAdminOrgRequest = (req) => ({
+  id: req.id,
+  orgName: req.orgName,
+  employeeCount: req.employeeCount,
+  contactPhone: req.contactPhone,
+  status: req.status,
+  comment: req.comment,
+  sessionId: req.sessionId,
+  session: req.session
+    ? {
+        publicId: req.session.publicId,
+        city: req.session.city,
+        date: req.session.date,
+        day: req.session.day,
+        time: req.session.time,
+      }
+    : null,
+  createdAt: req.createdAt,
+  updatedAt: req.updatedAt,
+})
+
+const orgRequestSchema = z.object({
+  orgName: z.string().min(2).max(200),
+  employeeCount: z.coerce.number().int().min(1).max(100000),
+  contactPhone: z.string().min(5).max(40),
+})
+
+app.post('/api/public/requests', asyncRoute(async (req, res) => {
+  const body = orgRequestSchema.parse(req.body)
+  const phone = normalizePhone(body.contactPhone)
+
+  const created = await prisma.organizationRequest.create({
+    data: {
+      orgName: body.orgName.trim(),
+      employeeCount: body.employeeCount,
+      contactPhone: phone,
+      status: 'NEW',
+    },
+  })
+
+  await logAudit('org_request.created', 'OrganizationRequest', created.id, {
+    orgName: created.orgName,
+    employeeCount: created.employeeCount,
+  }, 'public')
+
+  res.status(201).json({ ok: true, requestId: created.id })
+}))
+
+app.get('/api/admin/requests', requireAdmin, asyncRoute(async (req, res) => {
+  const status = req.query.status ? String(req.query.status) : undefined
+  const requests = await prisma.organizationRequest.findMany({
+    where: status ? { status } : undefined,
+    include: { session: true },
+    orderBy: { createdAt: 'desc' },
+  })
+  res.json({ requests: requests.map(toAdminOrgRequest) })
+}))
+
+const orgRequestPatchSchema = z.object({
+  status: z.enum(['NEW', 'CONTACTED', 'ASSIGNED', 'WON', 'LOST']).optional(),
+  comment: z.string().max(2000).optional().nullable(),
+  sessionPublicId: z.string().nullable().optional(),
+})
+
+app.patch('/api/admin/requests/:id', requireAdmin, asyncRoute(async (req, res) => {
+  const body = orgRequestPatchSchema.parse(req.body)
+  const data = {}
+  if (body.status !== undefined) data.status = body.status
+  if (body.comment !== undefined) data.comment = body.comment ?? null
+  if (body.sessionPublicId !== undefined) {
+    if (body.sessionPublicId === null || body.sessionPublicId === '') {
+      data.sessionId = null
+    } else {
+      const session = await prisma.trainingSession.findUnique({
+        where: { publicId: body.sessionPublicId },
+      })
+      if (!session) return res.status(404).json({ error: 'Session not found' })
+      data.sessionId = session.id
+      if (data.status === undefined) data.status = 'ASSIGNED'
+    }
+  }
+
+  const updated = await prisma.organizationRequest.update({
+    where: { id: req.params.id },
+    data,
+    include: { session: true },
+  })
+  await logAudit('org_request.updated', 'OrganizationRequest', updated.id, body)
+  res.json({ request: toAdminOrgRequest(updated) })
+}))
+
+app.delete('/api/admin/requests/:id', requireAdmin, asyncRoute(async (req, res) => {
+  await prisma.organizationRequest.delete({ where: { id: req.params.id } })
+  await logAudit('org_request.deleted', 'OrganizationRequest', req.params.id, {})
+  res.json({ ok: true })
+}))
 
 const loginSchema = z.object({
   username: z.string().min(1),

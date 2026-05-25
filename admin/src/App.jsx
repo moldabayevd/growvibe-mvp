@@ -1,33 +1,33 @@
 import { useEffect, useMemo, useState } from 'react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
-const SESSION_KEY = 'growvibe_admin_session'
+const SESSION_KEY = 'vibe42_admin_session'
 
-const statusLabels = {
-  NEW: 'Новый',
-  FLOW_COMPLETED: 'Флоу пройден',
-  PAYMENT_PENDING: 'Ждет оплату',
-  PROOF_UPLOADED: 'Чек на проверке',
-  PAID: 'Оплачен',
-  CONFIRMED: 'Подтвержден',
-  ATTENDED: 'Посетил',
-  NO_SHOW: 'Не пришел',
-  RESCHEDULED: 'Перенос',
-  CANCELLED: 'Отменен',
+const requestStatusLabels = {
+  NEW: 'Новая',
+  CONTACTED: 'Связались',
+  ASSIGNED: 'В группе',
+  WON: 'Закрыли',
+  LOST: 'Отказ',
+}
+const requestStatusOptions = Object.keys(requestStatusLabels)
+const requestBadgeClass = {
+  NEW: 'badge new',
+  CONTACTED: 'badge contacted',
+  ASSIGNED: 'badge assigned',
+  WON: 'badge won',
+  LOST: 'badge lost',
 }
 
-const statusOptions = Object.keys(statusLabels)
-
 const sessionStatusLabels = {
-  OPEN: 'Открыта для регистрации',
+  OPEN: 'Открыта',
   RISK: 'Риск недобора',
-  CONFIRMED: 'Группа подтверждена',
+  CONFIRMED: 'Подтверждена',
   ALMOST_FULL: 'Почти заполнена',
   FULL: 'Заполнена',
   CLOSED: 'Закрыта',
   CANCELLED: 'Отменена',
 }
-
 const sessionStatusOptions = Object.keys(sessionStatusLabels)
 
 const defaultSessionForm = {
@@ -36,20 +36,22 @@ const defaultSessionForm = {
   time: '19:00–22:00',
   duration: '3 часа',
   format: 'Вечерняя группа',
-  location: 'Кафе, адрес после оплаты',
-  priceKzt: 50000,
+  location: 'Уточняется',
   seatsTotal: 20,
-  seatsMin: 15,
   status: 'OPEN',
 }
 
 const formatDate = (value) =>
   value ? new Date(value).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }) : '—'
 
-const fileUrl = (url) => {
-  if (!url) return ''
-  if (url.startsWith('http')) return url
-  return `${API_URL}${url}`
+const formatShortDate = (value) =>
+  value ? new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) : '—'
+
+const formatPhoneDisplay = (digits) => {
+  if (!digits) return '—'
+  const d = String(digits).replace(/\D/g, '')
+  if (d.length !== 11) return digits
+  return `+${d[0]} (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9, 11)}`
 }
 
 const loadSession = () => {
@@ -68,22 +70,24 @@ export default function App() {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' })
   const [loginError, setLoginError] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
-  const [summary, setSummary] = useState(null)
-  const [applications, setApplications] = useState([])
-  const [statusFilter, setStatusFilter] = useState('')
+
+  const [tab, setTab] = useState('requests')
+
+  const [requests, setRequests] = useState([])
+  const [requestStatusFilter, setRequestStatusFilter] = useState('')
+
+  const [sessions, setSessions] = useState([])
   const [sessionForm, setSessionForm] = useState(defaultSessionForm)
   const [editingSessionId, setEditingSessionId] = useState(null)
   const [editForm, setEditForm] = useState(null)
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [messageDrafts, setMessageDrafts] = useState({})
-  const [sendingApplicationId, setSendingApplicationId] = useState(null)
   const [toast, setToast] = useState(null)
 
   const showToast = (message, kind = 'success') => {
     setToast({ message, kind, id: Date.now() })
   }
-
   useEffect(() => {
     if (!toast) return
     const t = setTimeout(() => setToast(null), 3000)
@@ -101,8 +105,8 @@ export default function App() {
   const logout = () => {
     localStorage.removeItem(SESSION_KEY)
     setSession(null)
-    setSummary(null)
-    setApplications([])
+    setRequests([])
+    setSessions([])
     setEditingSessionId(null)
     setEditForm(null)
   }
@@ -110,10 +114,7 @@ export default function App() {
   const request = async (path, options = {}) => {
     const response = await fetch(`${API_URL}${path}`, {
       ...options,
-      headers: {
-        ...headers,
-        ...(options.headers || {}),
-      },
+      headers: { ...headers, ...(options.headers || {}) },
     })
     if (response.status === 401) {
       logout()
@@ -129,12 +130,12 @@ export default function App() {
     setLoading(true)
     setError('')
     try {
-      const [summaryData, applicationsData] = await Promise.all([
+      const [reqData, sumData] = await Promise.all([
+        request(`/api/admin/requests${requestStatusFilter ? `?status=${requestStatusFilter}` : ''}`),
         request('/api/admin/summary'),
-        request(`/api/admin/applications${statusFilter ? `?status=${statusFilter}` : ''}`),
       ])
-      setSummary(summaryData)
-      setApplications(applicationsData.applications)
+      setRequests(reqData.requests || [])
+      setSessions(sumData.sessions || [])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -144,7 +145,7 @@ export default function App() {
 
   useEffect(() => {
     load()
-  }, [session?.token, statusFilter])
+  }, [session?.token, requestStatusFilter])
 
   const submitLogin = async (event) => {
     event.preventDefault()
@@ -169,49 +170,14 @@ export default function App() {
     }
   }
 
-  const verifyPayment = async (paymentId, applicationName) => {
-    if (!window.confirm(`Подтвердить оплату для заявки "${applicationName || ''}"?\n\nЗаявка перейдёт в статус "Оплачен" и клиенту уйдёт уведомление в WhatsApp (если настроены шаблоны).`)) return
+  // ── Заявки ────────────────────────────────────────────────────────────────
+  const patchRequest = async (id, payload, successMsg) => {
     try {
-      await request(`/api/admin/payments/${paymentId}/verify`, { method: 'POST', body: '{}' })
-      showToast('Оплата подтверждена', 'success')
-      await load()
-    } catch (err) {
-      if (err.message?.includes('overbooking') || err.message?.includes('заполнена')) {
-        if (window.confirm(`${err.message}\n\nПодтвердить всё равно?`)) {
-          await request(`/api/admin/payments/${paymentId}/verify?force=1`, { method: 'POST', body: '{}' })
-          showToast('Оплата подтверждена (форсированно)', 'success')
-          await load()
-        }
-      } else {
-        setError(err.message)
-        showToast(err.message, 'error')
-      }
-    }
-  }
-
-  const rejectPayment = async (paymentId) => {
-    const reason = window.prompt('Причина отклонения чека', 'Чек не подтвержден')
-    if (reason === null) return
-    try {
-      await request(`/api/admin/payments/${paymentId}/reject`, {
-        method: 'POST',
-        body: JSON.stringify({ reason }),
-      })
-      showToast('Чек отклонён', 'success')
-      await load()
-    } catch (err) {
-      setError(err.message)
-      showToast(err.message, 'error')
-    }
-  }
-
-  const updateStatus = async (applicationId, status) => {
-    try {
-      await request(`/api/admin/applications/${applicationId}/status`, {
+      await request(`/api/admin/requests/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(payload),
       })
-      showToast(`Статус: ${statusLabels[status] || status}`, 'success')
+      if (successMsg) showToast(successMsg)
       await load()
     } catch (err) {
       setError(err.message)
@@ -219,15 +185,33 @@ export default function App() {
     }
   }
 
+  const deleteRequest = async (req) => {
+    if (!window.confirm(`Удалить заявку "${req.orgName}"? Действие необратимо.`)) return
+    try {
+      await request(`/api/admin/requests/${req.id}`, { method: 'DELETE' })
+      showToast('Заявка удалена')
+      await load()
+    } catch (err) {
+      setError(err.message)
+      showToast(err.message, 'error')
+    }
+  }
+
+  // ── Группы ────────────────────────────────────────────────────────────────
   const createSession = async (event) => {
     event.preventDefault()
     try {
       await request('/api/admin/sessions', {
         method: 'POST',
-        body: JSON.stringify(sessionForm),
+        body: JSON.stringify({
+          ...sessionForm,
+          seatsTotal: Number(sessionForm.seatsTotal),
+          seatsMin: 1,
+          priceKzt: 0,
+        }),
       })
       setSessionForm(defaultSessionForm)
-      showToast('Группа создана', 'success')
+      showToast('Группа создана')
       await load()
     } catch (err) {
       setError(err.message)
@@ -236,35 +220,15 @@ export default function App() {
   }
 
   const deleteSession = async (sessionItem) => {
-    const label = `${sessionItem.city} · ${sessionItem.day}, ${new Date(sessionItem.date).toLocaleDateString('ru-RU')}`
-    if (!window.confirm(`Удалить группу "${label}"?\n\nЭто удалит её вместе со всеми заявками и сообщениями. Действие необратимо.`)) return
+    const label = `${sessionItem.city} · ${sessionItem.day}, ${formatShortDate(sessionItem.date)}`
+    if (!window.confirm(`Удалить группу "${label}"? Действие необратимо.`)) return
     try {
       await request(`/api/admin/sessions/${sessionItem.publicId}`, { method: 'DELETE' })
-      showToast(`Группа "${label}" удалена`, 'success')
+      showToast(`Группа удалена`)
       await load()
     } catch (err) {
       setError(err.message)
       showToast(err.message, 'error')
-    }
-  }
-
-  const sendMessage = async (applicationId) => {
-    const body = (messageDrafts[applicationId] || '').trim()
-    if (!body) return
-    setSendingApplicationId(applicationId)
-    try {
-      const res = await request(`/api/admin/applications/${applicationId}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({ body }),
-      })
-      setMessageDrafts({ ...messageDrafts, [applicationId]: '' })
-      const status = res?.message?.status
-      showToast(status === 'SENT' ? 'Сообщение отправлено' : 'Сообщение в очереди (WhatsApp креды не настроены)', 'success')
-    } catch (err) {
-      setError(err.message)
-      showToast(err.message, 'error')
-    } finally {
-      setSendingApplicationId(null)
     }
   }
 
@@ -274,7 +238,7 @@ export default function App() {
         method: 'PATCH',
         body: JSON.stringify({ status }),
       })
-      showToast(`Статус группы: ${sessionStatusLabels[status] || status}`, 'success')
+      showToast(`Статус: ${sessionStatusLabels[status] || status}`)
       await load()
     } catch (err) {
       setError(err.message)
@@ -291,18 +255,11 @@ export default function App() {
       duration: sessionItem.duration || '3 часа',
       format: sessionItem.format,
       location: sessionItem.location,
-      priceKzt: sessionItem.priceKzt,
       seatsTotal: sessionItem.seatsTotal,
-      seatsMin: sessionItem.seatsMin ?? 15,
       status: sessionItem.adminStatus,
     })
   }
-
-  const cancelEdit = () => {
-    setEditingSessionId(null)
-    setEditForm(null)
-  }
-
+  const cancelEdit = () => { setEditingSessionId(null); setEditForm(null) }
   const saveEdit = async (event) => {
     event.preventDefault()
     if (!editingSessionId || !editForm) return
@@ -311,13 +268,13 @@ export default function App() {
         method: 'PATCH',
         body: JSON.stringify({
           ...editForm,
-          priceKzt: Number(editForm.priceKzt),
           seatsTotal: Number(editForm.seatsTotal),
-          seatsMin: Number(editForm.seatsMin),
+          seatsMin: 1,
+          priceKzt: 0,
         }),
       })
       cancelEdit()
-      showToast('Группа обновлена', 'success')
+      showToast('Группа обновлена')
       await load()
     } catch (err) {
       setError(err.message)
@@ -329,7 +286,7 @@ export default function App() {
     return (
       <main className="login-screen">
         <section className="login-card">
-          <p className="eyebrow">GrowVibe Admin</p>
+          <p className="eyebrow">Vibe 42 Admin</p>
           <h1>Вход в админку</h1>
           <p className="muted">Введите логин и пароль администратора (см. <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code> в <code>.env</code>).</p>
           <form onSubmit={submitLogin}>
@@ -339,7 +296,7 @@ export default function App() {
                 type="text"
                 autoComplete="username"
                 value={loginForm.username}
-                onChange={(event) => setLoginForm({ ...loginForm, username: event.target.value })}
+                onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
                 placeholder="admin"
                 required
               />
@@ -350,14 +307,14 @@ export default function App() {
                 type="password"
                 autoComplete="current-password"
                 value={loginForm.password}
-                onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })}
+                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                 placeholder="пароль"
                 required
               />
             </label>
             {loginError && <div className="error" style={{ marginTop: 12 }}>{loginError}</div>}
-            <button type="submit" disabled={loginLoading} style={{ marginTop: 16, width: '100%', justifyContent: 'center' }}>
-              {loginLoading ? 'Входим...' : 'Войти'}
+            <button type="submit" className="primary" disabled={loginLoading} style={{ marginTop: 16, width: '100%', justifyContent: 'center' }}>
+              {loginLoading ? 'Входим…' : 'Войти'}
             </button>
           </form>
         </section>
@@ -365,268 +322,308 @@ export default function App() {
     )
   }
 
+  const newCount = requests.filter((r) => r.status === 'NEW').length
+  const inWorkCount = requests.filter((r) => ['CONTACTED', 'ASSIGNED'].includes(r.status)).length
+  const totalEmployees = requests
+    .filter((r) => ['CONTACTED', 'ASSIGNED', 'WON'].includes(r.status))
+    .reduce((s, r) => s + (r.employeeCount || 0), 0)
+
   return (
     <main>
       <header className="topbar">
         <div>
-          <p className="eyebrow">GrowVibe Admin</p>
-          <h1>Заявки, чеки и группы</h1>
+          <p className="eyebrow">Vibe 42 Admin</p>
+          <h1>Заявки от организаций и группы</h1>
           <small className="muted">Вы вошли как <strong>{session.username}</strong></small>
         </div>
         <div className="topbar-actions">
           <button type="button" className="secondary" onClick={load} disabled={loading}>
-            {loading ? 'Обновляем...' : 'Обновить'}
+            {loading ? 'Обновляем…' : 'Обновить'}
           </button>
           <button type="button" className="ghost" onClick={logout}>Выйти</button>
         </div>
       </header>
 
       {toast && (
-        <div className={`toast toast-${toast.kind}`} role="status">
-          {toast.message}
-        </div>
+        <div className={`toast toast-${toast.kind}`} role="status">{toast.message}</div>
       )}
-
       {error && <div className="error">{error}</div>}
 
-      {summary && (
-        <section className="stats-grid">
-          <article className="stat-card">
-            <span>Чеки на проверке</span>
-            <strong>{summary.pendingProofs}</strong>
-          </article>
-          {summary.sessions.map((session) => (
-            <article key={session.publicId} className={`stat-card ${session.launchRisk ? 'risk' : ''}`}>
-              <span>{session.city} · {session.day} · {session.time}</span>
-              <strong>{session.paidCount}/{session.seatsTotal}</strong>
-              <small>{session.status} · заявок {session.applicationCount} · чеков {session.proofCount}</small>
+      <div className="tabs">
+        <button
+          type="button"
+          className={`tab ${tab === 'requests' ? 'active' : ''}`}
+          onClick={() => setTab('requests')}
+        >
+          Заявки {newCount > 0 && `(${newCount} новых)`}
+        </button>
+        <button
+          type="button"
+          className={`tab ${tab === 'groups' ? 'active' : ''}`}
+          onClick={() => setTab('groups')}
+        >
+          Группы ({sessions.length})
+        </button>
+      </div>
+
+      {tab === 'requests' && (
+        <>
+          <section className="stats-grid">
+            <article className="stat-card">
+              <span>Новые заявки</span>
+              <strong>{newCount}</strong>
+              <small className="muted">Ждут первого контакта</small>
             </article>
-          ))}
-        </section>
-      )}
+            <article className="stat-card">
+              <span>В работе</span>
+              <strong>{inWorkCount}</strong>
+              <small className="muted">Связались или назначены в группу</small>
+            </article>
+            <article className="stat-card">
+              <span>Сотрудников всего</span>
+              <strong>{totalEmployees}</strong>
+              <small className="muted">По активным заявкам</small>
+            </article>
+          </section>
 
-      <section className="panel sessions-panel">
-        <div className="panel-head">
-          <div>
-            <h2>Доступные дни регистрации</h2>
-            <p className="muted">Откройте дату здесь — она появится на лендинге. Закройте или отмените — клиент не сможет записаться. «Редактировать» меняет любое поле.</p>
-          </div>
-        </div>
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>Заявки от организаций</h2>
+                <p className="muted">Здесь видны все заявки с лендинга. Меняйте статус, оставляйте комментарий, назначайте в группу.</p>
+              </div>
+              <select
+                value={requestStatusFilter}
+                onChange={(e) => setRequestStatusFilter(e.target.value)}
+              >
+                <option value="">Все статусы</option>
+                {requestStatusOptions.map((s) => (
+                  <option key={s} value={s}>{requestStatusLabels[s]}</option>
+                ))}
+              </select>
+            </div>
 
-        <form className="session-form" onSubmit={createSession}>
-          <label>
-            Город
-            <select value={sessionForm.city} onChange={(event) => setSessionForm({ ...sessionForm, city: event.target.value })}>
-              <option>Астана</option>
-              <option>Алматы</option>
-            </select>
-          </label>
-          <label>
-            Дата
-            <input type="date" required value={sessionForm.date} onChange={(event) => setSessionForm({ ...sessionForm, date: event.target.value })} />
-          </label>
-          <label>
-            Время
-            <input value={sessionForm.time} onChange={(event) => setSessionForm({ ...sessionForm, time: event.target.value })} />
-          </label>
-          <label>
-            Формат
-            <select value={sessionForm.format} onChange={(event) => setSessionForm({ ...sessionForm, format: event.target.value })}>
-              <option>Вечерняя группа</option>
-              <option>Суббота</option>
-              <option>Воскресенье</option>
-            </select>
-          </label>
-          <label>
-            Мест
-            <input type="number" min="1" value={sessionForm.seatsTotal} onChange={(event) => setSessionForm({ ...sessionForm, seatsTotal: event.target.value })} />
-          </label>
-          <label>
-            Цена, ₸
-            <input type="number" min="1" value={sessionForm.priceKzt} onChange={(event) => setSessionForm({ ...sessionForm, priceKzt: event.target.value })} />
-          </label>
-          <label className="wide">
-            Место
-            <input value={sessionForm.location} onChange={(event) => setSessionForm({ ...sessionForm, location: event.target.value })} />
-          </label>
-          <button type="submit">Открыть дату</button>
-        </form>
+            <div className="requests">
+              {requests.map((r) => (
+                <article key={r.id} className="request-card">
+                  <div className="request-main">
+                    <div>
+                      <div className="request-title">
+                        <strong style={{ fontSize: 17 }}>{r.orgName}</strong>
+                        <span className={requestBadgeClass[r.status] || 'badge'}>
+                          {requestStatusLabels[r.status] || r.status}
+                        </span>
+                      </div>
+                      <p className="muted" style={{ margin: '6px 0' }}>
+                        <strong>{r.employeeCount}</strong> сотрудников ·{' '}
+                        <a href={`tel:${r.contactPhone}`} style={{ color: '#0F1218', textDecoration: 'none', fontWeight: 600 }}>
+                          {formatPhoneDisplay(r.contactPhone)}
+                        </a>
+                      </p>
+                      {r.session && (
+                        <p className="muted" style={{ margin: '4px 0' }}>
+                          Назначена в группу: <strong>{r.session.city} · {r.session.day}, {formatShortDate(r.session.date)} · {r.session.time}</strong>
+                        </p>
+                      )}
+                      <small className="muted">Получена: {formatDate(r.createdAt)}</small>
 
-        <div className="sessions-list">
-          {(summary?.sessions || []).map((sessionItem) => {
-            const isEditing = editingSessionId === sessionItem.publicId
-            if (isEditing && editForm) {
-              return (
-                <article key={sessionItem.publicId} className="session-row editing">
-                  <form className="session-form edit-form" onSubmit={saveEdit}>
-                    <label>
-                      Город
-                      <select value={editForm.city} onChange={(event) => setEditForm({ ...editForm, city: event.target.value })}>
-                        <option>Астана</option>
-                        <option>Алматы</option>
-                      </select>
-                    </label>
-                    <label>
-                      Дата
-                      <input type="date" required value={editForm.date} onChange={(event) => setEditForm({ ...editForm, date: event.target.value })} />
-                    </label>
-                    <label>
-                      Время
-                      <input value={editForm.time} onChange={(event) => setEditForm({ ...editForm, time: event.target.value })} />
-                    </label>
-                    <label>
-                      Длительность
-                      <input value={editForm.duration} onChange={(event) => setEditForm({ ...editForm, duration: event.target.value })} />
-                    </label>
-                    <label>
-                      Формат
-                      <select value={editForm.format} onChange={(event) => setEditForm({ ...editForm, format: event.target.value })}>
-                        <option>Вечерняя группа</option>
-                        <option>Суббота</option>
-                        <option>Воскресенье</option>
-                      </select>
-                    </label>
-                    <label>
-                      Мест всего
-                      <input type="number" min="1" value={editForm.seatsTotal} onChange={(event) => setEditForm({ ...editForm, seatsTotal: event.target.value })} />
-                    </label>
-                    <label>
-                      Мест минимум
-                      <input type="number" min="1" value={editForm.seatsMin} onChange={(event) => setEditForm({ ...editForm, seatsMin: event.target.value })} />
-                    </label>
-                    <label>
-                      Цена, ₸
-                      <input type="number" min="1" value={editForm.priceKzt} onChange={(event) => setEditForm({ ...editForm, priceKzt: event.target.value })} />
-                    </label>
-                    <label>
-                      Статус
-                      <select value={editForm.status} onChange={(event) => setEditForm({ ...editForm, status: event.target.value })}>
-                        {sessionStatusOptions.map((status) => (
-                          <option key={status} value={status}>{sessionStatusLabels[status]}</option>
+                      <textarea
+                        placeholder="Комментарий менеджера (что обсудили, договорённости…)"
+                        defaultValue={r.comment || ''}
+                        onBlur={(e) => {
+                          const next = e.target.value
+                          if ((r.comment || '') !== next) {
+                            patchRequest(r.id, { comment: next }, 'Комментарий сохранён')
+                          }
+                        }}
+                        rows={2}
+                        style={{ width: '100%', marginTop: 10 }}
+                      />
+                    </div>
+
+                    <div className="request-actions">
+                      <select
+                        value={r.status}
+                        onChange={(e) => patchRequest(r.id, { status: e.target.value }, 'Статус обновлён')}
+                      >
+                        {requestStatusOptions.map((s) => (
+                          <option key={s} value={s}>{requestStatusLabels[s]}</option>
                         ))}
                       </select>
-                    </label>
-                    <label className="wide">
-                      Место
-                      <input value={editForm.location} onChange={(event) => setEditForm({ ...editForm, location: event.target.value })} />
-                    </label>
-                    <div className="edit-actions">
-                      <button type="submit">Сохранить</button>
-                      <button type="button" className="secondary" onClick={cancelEdit}>Отменить</button>
+                      <select
+                        value={r.session?.publicId || ''}
+                        onChange={(e) => patchRequest(r.id, { sessionPublicId: e.target.value || null }, 'Группа назначена')}
+                      >
+                        <option value="">— без группы —</option>
+                        {sessions.map((s) => (
+                          <option key={s.publicId} value={s.publicId}>
+                            {s.city} · {formatShortDate(s.date)} · {s.time}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="danger"
+                        onClick={() => deleteRequest(r)}
+                      >
+                        Удалить заявку
+                      </button>
                     </div>
-                  </form>
-                </article>
-              )
-            }
-            return (
-              <article key={sessionItem.publicId} className={`session-row ${sessionItem.registrationOpen ? 'open' : 'closed'}`}>
-                <div>
-                  <strong>{sessionItem.city} · {sessionItem.day}, {new Date(sessionItem.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</strong>
-                  <p>{sessionItem.time} · {sessionItem.format} · {sessionItem.location}</p>
-                  <small>
-                    На лендинге: {sessionItem.registrationOpen ? 'доступна регистрация' : 'закрыто'} ·
-                    мест {sessionItem.seatsLeft}/{sessionItem.seatsTotal} · оплачено {sessionItem.paidCount} · цена {Number(sessionItem.priceKzt).toLocaleString('ru-RU')} ₸
-                  </small>
-                </div>
-                <div className="session-row-actions">
-                  <select value={sessionItem.adminStatus} onChange={(event) => updateSessionStatus(sessionItem.publicId, event.target.value)}>
-                    {sessionStatusOptions.map((status) => (
-                      <option key={status} value={status}>{sessionStatusLabels[status]}</option>
-                    ))}
-                  </select>
-                  <button type="button" className="secondary" onClick={() => startEdit(sessionItem)}>Редактировать</button>
-                  <button type="button" className="danger" onClick={() => deleteSession(sessionItem)}>Удалить</button>
-                </div>
-              </article>
-            )
-          })}
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="panel-head">
-          <h2>Заявки</h2>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-            <option value="">Все статусы</option>
-            {statusOptions.map((status) => (
-              <option key={status} value={status}>{statusLabels[status]}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="applications">
-          {applications.map((application) => {
-            const payment = application.payments?.[0]
-            return (
-              <article key={application.id} className="application-card">
-                <div className="application-main">
-                  <div>
-                    <div className="lead-line">
-                      <strong>{application.lead?.name || 'Без имени'}</strong>
-                      <span>{statusLabels[application.status] || application.status}</span>
-                    </div>
-                    <p className="muted">
-                      {application.lead?.phone} · {application.lead?.email || 'email не указан'}
-                    </p>
-                    <p>
-                      {application.session?.city} · {application.session?.day} · {application.session?.time}
-                    </p>
-                    <small>Создано: {formatDate(application.createdAt)}</small>
                   </div>
+                </article>
+              ))}
 
-                  <div className="actions">
-                    <select value={application.status} onChange={(event) => updateStatus(application.id, event.target.value)}>
-                      {statusOptions.map((status) => (
-                        <option key={status} value={status}>{statusLabels[status]}</option>
+              {!requests.length && !loading && (
+                <div className="empty">Заявок пока нет.</div>
+              )}
+            </div>
+          </section>
+        </>
+      )}
+
+      {tab === 'groups' && (
+        <section className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>Группы обучения</h2>
+              <p className="muted">Создавайте группы (когорты) и назначайте в них заявки. Видны только в админке — на лендинге не отображаются.</p>
+            </div>
+          </div>
+
+          <form className="session-form" onSubmit={createSession}>
+            <label>
+              Город
+              <input
+                value={sessionForm.city}
+                onChange={(e) => setSessionForm({ ...sessionForm, city: e.target.value })}
+              />
+            </label>
+            <label>
+              Дата
+              <input
+                type="date"
+                required
+                value={sessionForm.date}
+                onChange={(e) => setSessionForm({ ...sessionForm, date: e.target.value })}
+              />
+            </label>
+            <label>
+              Время
+              <input
+                value={sessionForm.time}
+                onChange={(e) => setSessionForm({ ...sessionForm, time: e.target.value })}
+              />
+            </label>
+            <label>
+              Формат
+              <input
+                value={sessionForm.format}
+                onChange={(e) => setSessionForm({ ...sessionForm, format: e.target.value })}
+              />
+            </label>
+            <label>
+              Кол-во мест
+              <input
+                type="number"
+                min="1"
+                value={sessionForm.seatsTotal}
+                onChange={(e) => setSessionForm({ ...sessionForm, seatsTotal: e.target.value })}
+              />
+            </label>
+            <label className="wide">
+              Место проведения
+              <input
+                value={sessionForm.location}
+                onChange={(e) => setSessionForm({ ...sessionForm, location: e.target.value })}
+              />
+            </label>
+            <div className="submit-cell">
+              <button type="submit" className="primary">+ Создать группу</button>
+            </div>
+          </form>
+
+          <div className="sessions-list">
+            {sessions.map((sessionItem) => {
+              const isEditing = editingSessionId === sessionItem.publicId
+              if (isEditing && editForm) {
+                return (
+                  <article key={sessionItem.publicId} className="session-row editing">
+                    <form className="session-form edit-form" onSubmit={saveEdit}>
+                      <label>
+                        Город
+                        <input value={editForm.city} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} />
+                      </label>
+                      <label>
+                        Дата
+                        <input type="date" required value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} />
+                      </label>
+                      <label>
+                        Время
+                        <input value={editForm.time} onChange={(e) => setEditForm({ ...editForm, time: e.target.value })} />
+                      </label>
+                      <label>
+                        Длительность
+                        <input value={editForm.duration} onChange={(e) => setEditForm({ ...editForm, duration: e.target.value })} />
+                      </label>
+                      <label>
+                        Формат
+                        <input value={editForm.format} onChange={(e) => setEditForm({ ...editForm, format: e.target.value })} />
+                      </label>
+                      <label>
+                        Кол-во мест
+                        <input type="number" min="1" value={editForm.seatsTotal} onChange={(e) => setEditForm({ ...editForm, seatsTotal: e.target.value })} />
+                      </label>
+                      <label>
+                        Статус
+                        <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
+                          {sessionStatusOptions.map((s) => (
+                            <option key={s} value={s}>{sessionStatusLabels[s]}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="wide">
+                        Место
+                        <input value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} />
+                      </label>
+                      <div className="edit-actions">
+                        <button type="submit" className="primary">Сохранить</button>
+                        <button type="button" className="secondary" onClick={cancelEdit}>Отменить</button>
+                      </div>
+                    </form>
+                  </article>
+                )
+              }
+              return (
+                <article key={sessionItem.publicId} className="session-row">
+                  <div>
+                    <strong>{sessionItem.city} · {sessionItem.day}, {formatShortDate(sessionItem.date)}</strong>
+                    <p>{sessionItem.time} · {sessionItem.format} · {sessionItem.location}</p>
+                    <small className="muted">
+                      Мест: {sessionItem.seatsTotal} · статус: {sessionStatusLabels[sessionItem.adminStatus] || sessionItem.adminStatus}
+                    </small>
+                  </div>
+                  <div className="session-row-actions">
+                    <select
+                      value={sessionItem.adminStatus}
+                      onChange={(e) => updateSessionStatus(sessionItem.publicId, e.target.value)}
+                    >
+                      {sessionStatusOptions.map((s) => (
+                        <option key={s} value={s}>{sessionStatusLabels[s]}</option>
                       ))}
                     </select>
-                    {payment?.receiptUrl && (
-                      <a className="button secondary" href={fileUrl(payment.receiptUrl)} target="_blank" rel="noreferrer">
-                        Открыть чек
-                      </a>
-                    )}
-                    {payment?.status === 'PROOF_UPLOADED' && (
-                      <>
-                        <button type="button" onClick={() => verifyPayment(payment.id, application.lead?.name)}>Подтвердить оплату</button>
-                        <button type="button" className="danger" onClick={() => rejectPayment(payment.id)}>Отклонить</button>
-                      </>
-                    )}
+                    <button type="button" className="secondary" onClick={() => startEdit(sessionItem)}>Редактировать</button>
+                    <button type="button" className="danger" onClick={() => deleteSession(sessionItem)}>Удалить</button>
                   </div>
-                </div>
+                </article>
+              )
+            })}
 
-                {payment && (
-                  <div className="payment-row">
-                    <span>Оплата: {payment.status}</span>
-                    <span>{payment.amountKzt?.toLocaleString('ru-RU')} ₸</span>
-                    <span>{payment.receiptOriginalName || 'чек не загружен'}</span>
-                  </div>
-                )}
-
-                <div className="message-row">
-                  <textarea
-                    rows={2}
-                    placeholder={`Написать в WhatsApp на ${application.lead?.whatsapp || application.lead?.phone || 'клиента'}...`}
-                    value={messageDrafts[application.id] || ''}
-                    onChange={(event) => setMessageDrafts({ ...messageDrafts, [application.id]: event.target.value })}
-                  />
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => sendMessage(application.id)}
-                    disabled={sendingApplicationId === application.id || !(messageDrafts[application.id] || '').trim()}
-                  >
-                    {sendingApplicationId === application.id ? 'Отправляем...' : 'Отправить'}
-                  </button>
-                </div>
-              </article>
-            )
-          })}
-
-          {!applications.length && !loading && (
-            <div className="empty">Заявок пока нет.</div>
-          )}
-        </div>
-      </section>
+            {!sessions.length && !loading && (
+              <div className="empty">Групп пока нет. Создайте первую сверху.</div>
+            )}
+          </div>
+        </section>
+      )}
     </main>
   )
 }

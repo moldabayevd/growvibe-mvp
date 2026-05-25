@@ -57,6 +57,31 @@ enum MessageStatus {
   RECEIVED
 }
 
+enum OrgRequestStatus {
+  NEW
+  CONTACTED
+  ASSIGNED
+  WON
+  LOST
+}
+
+model OrganizationRequest {
+  id            String           @id @default(cuid())
+  orgName       String
+  employeeCount Int
+  contactPhone  String
+  status        OrgRequestStatus @default(NEW)
+  comment       String?
+  sessionId     String?
+  session       TrainingSession? @relation(fields: [sessionId], references: [id])
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([status])
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
 model Lead {
   id           String            @id @default(cuid())
   name         String?
@@ -72,22 +97,23 @@ model Lead {
 }
 
 model TrainingSession {
-  id           String            @id @default(cuid())
-  publicId     String            @unique
-  city         String
-  date         DateTime
-  day          String
-  time         String
-  duration     String
-  format       String
-  location     String
-  priceKzt     Int
-  seatsTotal   Int
-  seatsMin     Int               @default(15)
-  status       SessionStatus     @default(OPEN)
-  applications Application[]
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  id            String                @id @default(cuid())
+  publicId      String                @unique
+  city          String
+  date          DateTime
+  day           String
+  time          String
+  duration      String
+  format        String
+  location      String
+  priceKzt      Int
+  seatsTotal    Int
+  seatsMin      Int                   @default(15)
+  status        SessionStatus         @default(OPEN)
+  applications  Application[]
+  orgRequests   OrganizationRequest[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 }
 
 model Application {

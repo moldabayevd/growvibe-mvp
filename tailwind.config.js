@@ -3,6 +3,32 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
+      colors: {
+        cyan: {
+          DEFAULT: '#00E5FF',
+          50: '#E6FCFF',
+          100: '#B8F5FF',
+          200: '#7AEDFF',
+          300: '#3DE3FF',
+          400: '#00E5FF',
+          500: '#00C2DC',
+          600: '#0099B0',
+          700: '#007385',
+          800: '#004F5C',
+          900: '#002A33',
+        },
+        ink: {
+          DEFAULT: '#0F1218',
+          900: '#0F1218',
+          800: '#1A1F29',
+          700: '#262C38',
+          600: '#3A4151',
+          500: '#5C6577',
+        },
+      },
+      boxShadow: {
+        cyanGlow: '0 0 0 4px rgba(0, 229, 255, 0.18)',
+      },
       keyframes: {
         shake: {
           '0%, 100%': { transform: 'translateX(0)' },
@@ -13,26 +39,9 @@ export default {
           '75%':       { transform: 'translateX(-3px)' },
           '90%':       { transform: 'translateX(3px)' },
         },
-        glow: {
-          '0%, 100%': { boxShadow: '0 0 0 0 rgba(217,119,87,0)' },
-          '30%':       { boxShadow: '0 0 0 6px rgba(217,119,87,0.25)' },
-          '70%':       { boxShadow: '0 0 0 4px rgba(217,119,87,0.15)' },
-        },
-        walk: {
-          '0%, 100%': { transform: 'translate(-50%, -100%) rotate(-4deg) scale(1)' },
-          '50%':       { transform: 'translate(-50%, -115%) rotate(4deg) scale(1.05)' },
-        },
-        celebrate: {
-          '0%, 100%': { transform: 'translate(-50%, -100%) scale(1)' },
-          '25%':       { transform: 'translate(-50%, -130%) scale(1.2) rotate(10deg)' },
-          '75%':       { transform: 'translate(-50%, -130%) scale(1.2) rotate(-10deg)' },
-        },
       },
       animation: {
-        shake:     'shake 0.7s ease-in-out',
-        glow:      'glow 1.2s ease-in-out',
-        walk:      'walk 0.7s ease-in-out infinite',
-        celebrate: 'celebrate 0.6s ease-in-out infinite',
+        shake: 'shake 0.7s ease-in-out',
       },
     },
   },
