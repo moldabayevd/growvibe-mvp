@@ -10,6 +10,23 @@ const CHIPS = [
   { label: 'Хочу заявку →', message: 'Как оставить заявку для своей команды?' },
 ]
 
+const URL_RE = /(https?:\/\/[^\s)]+)/g
+
+function renderMessage(text) {
+  const parts = text.split(URL_RE)
+  return parts.map((part, i) => {
+    if (URL_RE.test(part)) {
+      URL_RE.lastIndex = 0
+      return (
+        <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-cyan-600">
+          {part}
+        </a>
+      )
+    }
+    return part
+  })
+}
+
 function BotAvatar() {
   return (
     <img src="/logos/vibe42.jpg" alt="Vibe 42" className="w-7 h-7 rounded-lg flex-shrink-0 object-cover" />
@@ -124,7 +141,7 @@ export default function ChatWidget() {
                       : 'bg-cyan-50 border border-cyan-100 text-ink-800 rounded-tl-sm'
                   }`}
                 >
-                  {msg.content}
+                  {renderMessage(msg.content)}
                 </div>
               </div>
             ))}
