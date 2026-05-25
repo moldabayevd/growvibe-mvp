@@ -12,9 +12,7 @@ const CHIPS = [
 
 function BotAvatar() {
   return (
-    <div className="w-7 h-7 rounded-lg bg-cyan-400 text-ink-900 flex items-center justify-center font-bold text-xs flex-shrink-0">
-      42
-    </div>
+    <img src="/logos/vibe42.jpg" alt="Vibe 42" className="w-7 h-7 rounded-lg flex-shrink-0 object-cover" />
   )
 }
 
@@ -74,9 +72,7 @@ export default function ChatWidget() {
         >
           {/* Header */}
           <div className="flex items-center gap-3 px-4 py-3 bg-ink-900 flex-shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-cyan-400 text-ink-900 flex items-center justify-center font-bold text-sm flex-shrink-0">
-              42
-            </div>
+            <img src="/logos/vibe42.jpg" alt="Vibe 42" className="w-9 h-9 rounded-xl flex-shrink-0 object-cover" />
             <div className="flex-1 min-w-0">
               <div className="text-white font-semibold text-sm leading-tight">Помощник — Vibe 42</div>
               <div className="text-xs flex items-center gap-1.5 mt-0.5">

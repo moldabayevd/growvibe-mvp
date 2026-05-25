@@ -17,6 +17,14 @@ export default function Hero({ onCTA }) {
           </div>
         </div>
 
+        <div className="flex justify-center mb-6">
+          <img
+            src="/logos/vibe42.jpg"
+            alt="Vibe 42"
+            className="w-24 h-24 md:w-28 md:h-28 rounded-3xl shadow-lg shadow-cyan-400/30"
+          />
+        </div>
+
         <h1 className="text-4xl md:text-6xl font-bold leading-tight tracking-tight mb-6">
           <span className="text-cyan-400">Vibe 42</span><br />
           движение вайб-кодинга для&nbsp;команд

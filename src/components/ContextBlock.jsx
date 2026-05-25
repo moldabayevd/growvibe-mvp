@@ -132,7 +132,7 @@ export default function ContextBlock() {
         {hasResult && (
           <div ref={resultRef} className="mt-6">
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-lg bg-cyan-400 text-ink-900 flex items-center justify-center font-bold text-xs">42</div>
+              <img src="/logos/vibe42.jpg" alt="Vibe 42" className="w-6 h-6 rounded-lg object-cover" />
               <span className="text-ink-500 text-xs">Vibe 42 · специально для тебя</span>
             </div>
 

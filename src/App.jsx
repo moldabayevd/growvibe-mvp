@@ -37,8 +37,8 @@ export default function App() {
 
       <footer className="bg-ink-900 text-white/60 text-center py-10 text-sm">
         <div className="max-w-4xl mx-auto px-6">
-          <div className="text-cyan-400 font-bold text-lg mb-2">Vibe 42</div>
-          <div>© 2026 Vibe 42 · Обучение вайб-кодингу для команд</div>
+          <img src="/logos/vibe42.jpg" alt="Vibe 42" className="w-12 h-12 rounded-xl mx-auto mb-3" />
+          <div>© 2026 Vibe 42 · Движение вайб-кодинга для команд</div>
         </div>
       </footer>
 
