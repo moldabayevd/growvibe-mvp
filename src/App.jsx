@@ -9,6 +9,7 @@ import Toast from './components/Toast'
 import ChatWidget from './components/ChatWidget'
 import Partners from './components/Partners'
 import ContextBlock from './components/ContextBlock'
+import Foundation from './components/Foundation'
 
 export default function App() {
   const [toast, setToast] = useState(null)
@@ -24,6 +25,7 @@ export default function App() {
 
       <Hero onCTA={scrollToForm} />
       <Partners />
+      <Foundation />
       <ContextBlock />
       <WhatIs />
       <ForWhom />

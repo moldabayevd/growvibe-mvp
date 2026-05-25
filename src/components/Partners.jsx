@@ -1,7 +1,7 @@
 const partners = [
+  { name: 'Федерация спорт программирования Казахстана', src: '/logos/cpfed.png' },
   { name: 'Kazakhtelecom', src: '/logos/kt.webp' },
   { name: 'Samruk Business Academy', src: '/logos/sba.png' },
-  { name: 'ЦПФЭД', src: '/logos/cpfed.png' },
 ]
 
 export default function Partners() {

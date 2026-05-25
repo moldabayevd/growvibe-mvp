@@ -10,10 +10,7 @@ export default function Hero({ onCTA }) {
         <div className="flex flex-wrap justify-center gap-2 mb-8">
           <div className="inline-flex items-center gap-2 bg-white/5 border border-cyan-400/40 rounded-full px-4 py-1.5 text-sm">
             <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-            Движение · не курсы
-          </div>
-          <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-sm text-white/60">
-            ✦ Нонпрофит инициатива
+            Нонпрофит движение адаптации к эпохе ИИ
           </div>
         </div>
 
@@ -30,10 +27,13 @@ export default function Hero({ onCTA }) {
           движение вайб-кодинга для&nbsp;команд
         </h1>
 
-        <p className="text-lg md:text-xl text-white/70 max-w-2xl mx-auto mb-10">
-          Это не курсы — это практикум-движение, где ваша команда начинает
-          создавать цифровые продукты с помощью AI. За пару занятий,
-          без программирования, с реальным результатом.
+        <p className="text-lg md:text-xl text-white/70 max-w-2xl mx-auto mb-6">
+          Это не курсы — это движение. Помогаем командам адаптироваться к эпохе ИИ:
+          сотрудники начинают создавать продукты с AI, не зная программирования.
+        </p>
+
+        <p className="text-cyan-400 font-semibold tracking-widest text-sm uppercase mb-10">
+          Adapt · Amplify · Stay Human
         </p>
 
         <div className="flex flex-wrap justify-center gap-3 mb-12 text-sm">
