@@ -10,7 +10,7 @@ export default function Hero({ onCTA }) {
         <div className="flex flex-wrap justify-center gap-2 mb-8">
           <div className="inline-flex items-center gap-2 bg-white/5 border border-cyan-400/40 rounded-full px-4 py-1.5 text-sm">
             <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-            Нонпрофит движение адаптации к эпохе ИИ
+            Некоммерческое движение · адаптация к эпохе ИИ
           </div>
         </div>
 
