@@ -37,7 +37,7 @@ export default function Hero({ onCTA }) {
         </p>
 
         <div className="flex flex-wrap justify-center gap-3 mb-12 text-sm">
-          {['Для команд', 'Офлайн или онлайн', 'Под формат компании', 'Практика, не теория'].map((t) => (
+          {['Для команд', 'Только офлайн', 'В офисе компании', 'Практика, не теория'].map((t) => (
             <span key={t} className="bg-white/5 border border-white/15 rounded-full px-4 py-1.5 text-white/80">
               {t}
             </span>
